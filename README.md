@@ -76,3 +76,4 @@ src/
 ## Production notes
 
 Replace `src/lib/store.ts` with a real database, enforce auth on API routes, and use live Stripe keys. Wire `POST /api/webhooks/stripe` to your Stripe dashboard endpoint with the signing secret.
+<!-- progress: refactor: isolate availability pure functions -->
