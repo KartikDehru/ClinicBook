@@ -7,3 +7,4 @@
 - 2026-06-02: feat: improve reschedule form UX
 - 2026-06-03: feat: show plan limits in billing UI
 - 2026-06-04: perf: memoize slot generation windows
+- 2026-06-05: fix: handle missing tenant slug gracefully
