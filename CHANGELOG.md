@@ -8,3 +8,4 @@
 - 2026-06-03: feat: show plan limits in billing UI
 - 2026-06-04: perf: memoize slot generation windows
 - 2026-06-05: fix: handle missing tenant slug gracefully
+- 2026-06-06: feat: add notification stubs for booking events
