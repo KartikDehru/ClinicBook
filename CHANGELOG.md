@@ -10,3 +10,4 @@
 - 2026-06-05: fix: handle missing tenant slug gracefully
 - 2026-06-06: feat: add notification stubs for booking events
 - 2026-06-07: style: align admin metrics layout
+- 2026-06-07: docs: expand onboarding for clinics gyms tutors
