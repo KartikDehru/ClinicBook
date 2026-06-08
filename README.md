@@ -81,3 +81,5 @@ Replace `src/lib/store.ts` with a real database, enforce auth on API routes, and
 <!-- progress: feat: improve reschedule form UX -->
 
 <!-- progress: feat: add notification stubs for booking events -->
+
+<!-- progress: feat: add empty states for sparse calendars -->
