@@ -13,3 +13,4 @@
 - 2026-06-07: docs: expand onboarding for clinics gyms tutors
 - 2026-06-07: chore: normalize package scripts
 - 2026-06-08: feat: add empty states for sparse calendars
+- 2026-06-10: fix: preserve timezone-naive local slots
