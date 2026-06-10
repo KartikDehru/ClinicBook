@@ -14,3 +14,4 @@
 - 2026-06-07: chore: normalize package scripts
 - 2026-06-08: feat: add empty states for sparse calendars
 - 2026-06-10: fix: preserve timezone-naive local slots
+- 2026-06-10: refactor: share tenant header components
