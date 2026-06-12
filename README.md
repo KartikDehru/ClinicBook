@@ -83,3 +83,5 @@ Replace `src/lib/store.ts` with a real database, enforce auth on API routes, and
 <!-- progress: feat: add notification stubs for booking events -->
 
 <!-- progress: feat: add empty states for sparse calendars -->
+
+<!-- progress: style: improve booking confirmation feedback -->

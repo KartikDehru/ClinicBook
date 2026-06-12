@@ -16,3 +16,4 @@
 - 2026-06-10: fix: preserve timezone-naive local slots
 - 2026-06-10: refactor: share tenant header components
 - 2026-06-11: feat: highlight Enterprise seat capacity
+- 2026-06-12: style: improve booking confirmation feedback
