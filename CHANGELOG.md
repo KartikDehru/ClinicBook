@@ -18,3 +18,4 @@
 - 2026-06-11: feat: highlight Enterprise seat capacity
 - 2026-06-12: style: improve booking confirmation feedback
 - 2026-06-13: docs: note webhook verification path
+- 2026-06-13: chore: finalize release candidate packaging
