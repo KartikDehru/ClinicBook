@@ -19,3 +19,4 @@
 - 2026-06-12: style: improve booking confirmation feedback
 - 2026-06-13: docs: note webhook verification path
 - 2026-06-13: chore: finalize release candidate packaging
+- 2026-06-14: docs: add local demo walkthrough
