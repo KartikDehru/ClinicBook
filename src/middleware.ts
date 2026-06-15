@@ -2,29 +2,23 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 /**
- * Mock subdomain routing: rewrites {tenant}.localhost requests to /t/{slug}
- * Set x-tenant-slug header for downstream server components.
+ * Subdomain routing: `{tenant}.{ROOT_DOMAIN}` is rewritten to `/t/{tenant}`.
+ * The apex domain, `www` and `app` are never treated as tenants.
  */
-export function middleware(request: NextRequest) {
-  const host = request.headers.get("host") ?? "";
-  const parts = host.split(".");
-  const maybeSubdomain = parts[0];
+const RESERVED = new Set(["www", "app", "api"]);
 
-  if (
-    maybeSubdomain &&
-    maybeSubdomain !== "localhost" &&
-    maybeSubdomain !== "www" &&
-    !host.startsWith("localhost:")
-  ) {
-    const url = request.nextUrl.clone();
-    if (!url.pathname.startsWith("/t/")) {
-      url.pathname = `/t/${maybeSubdomain}${url.pathname}`;
-      const res = NextResponse.rewrite(url);
-      res.headers.set("x-tenant-slug", maybeSubdomain);
-      return res;
+export function middleware(request: NextRequest) {
+  const root = (process.env.ROOT_DOMAIN ?? "localhost").toLowerCase();
+  const host = (request.headers.get("host") ?? "").toLowerCase().split(":")[0] ?? "";
+
+  if (host.endsWith(`.${root}`)) {
+    const sub = host.slice(0, -(root.length + 1));
+    if (sub && !sub.includes(".") && !RESERVED.has(sub) && !request.nextUrl.pathname.startsWith("/t/")) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/t/${sub}${url.pathname === "/" ? "" : url.pathname}`;
+      return NextResponse.rewrite(url);
     }
   }
-
   return NextResponse.next();
 }
 

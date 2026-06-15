@@ -3,28 +3,28 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:pointer-events-none disabled:opacity-50",
+export const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-colors disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-brand-600 text-white hover:bg-brand-700",
-        secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200",
-        outline: "border border-slate-200 bg-white hover:bg-slate-50",
-        ghost: "hover:bg-slate-100",
-        destructive: "bg-red-600 text-white hover:bg-red-700",
+        default: "bg-clinic-700 text-white hover:bg-clinic-800",
+        dark: "bg-ink-900 text-white hover:bg-ink-700",
+        secondary: "bg-sand-100 text-ink-900 hover:bg-sand-200",
+        outline: "border border-ink-200 bg-white text-ink-900 hover:bg-ink-50",
+        ghost: "text-ink-700 hover:bg-ink-100",
+        onDark: "bg-white text-clinic-900 hover:bg-sand-100",
+        outlineOnDark: "border border-white/40 text-white hover:bg-white/10",
+        destructive: "bg-signal-red text-white hover:bg-red-800",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-11 rounded-lg px-8",
-        icon: "h-10 w-10",
+        default: "h-10 px-4",
+        sm: "h-8 px-3 text-xs",
+        lg: "h-12 px-6 text-[15px]",
+        icon: "h-9 w-9",
       },
     },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
+    defaultVariants: { variant: "default", size: "default" },
   }
 );
 
@@ -34,14 +34,10 @@ export interface ButtonProps
   asChild?: boolean;
 }
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
-    return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
-    );
+    return <Comp className={cn(buttonVariants({ variant, size }), className)} ref={ref} {...props} />;
   }
 );
 Button.displayName = "Button";
-
-export { Button, buttonVariants };

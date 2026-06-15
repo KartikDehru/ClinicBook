@@ -1,41 +1,60 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { SiteHeader } from "@/components/layout/site-header";
-import { getDemoUsers } from "@/lib/auth/session";
-import { store } from "@/lib/store";
-import { roleLabel } from "@/lib/auth/roles";
-import { Button } from "@/components/ui/button";
-import { DemoLoginButtons } from "@/components/auth/demo-login-buttons";
+import { DemoLoginList, type DemoGroup } from "@/components/auth/demo-login-list";
+import { roleLabel } from "@/lib/auth/rbac";
+import { getContainer } from "@/lib/container";
+import { env } from "@/lib/env";
+import { Alert } from "@/components/ui/form";
 
-export default function DemoPage() {
-  const users = getDemoUsers();
+export const metadata: Metadata = { title: "Sign in" };
+export const dynamic = "force-dynamic";
+
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
+  const { repos } = getContainer();
+  const [tenants, users] = await Promise.all([repos.tenants.list(), repos.users.listAll()]);
+
+  const groups: DemoGroup[] = [
+    {
+      tenantName: "Platform",
+      users: users
+        .filter((u) => u.tenantId === null)
+        .map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, roleLabel: roleLabel(u.role), home: "/admin" })),
+    },
+    ...tenants.map((t) => ({
+      tenantName: t.name,
+      users: users
+        .filter((u) => u.tenantId === t.id)
+        .map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          roleLabel: roleLabel(u.role),
+          home: u.role === "client" ? `/t/${t.slug}/book` : `/t/${t.slug}`,
+        })),
+    })),
+  ].filter((g) => g.users.length > 0);
 
   return (
     <>
       <SiteHeader />
-      <div className="mx-auto max-w-3xl px-4 py-16">
-        <h1 className="text-3xl font-bold text-slate-900">Demo logins</h1>
-        <p className="mt-2 text-slate-600">
-          Switch roles to test owner, staff, and client access (cookie session).
+      <main className="mx-auto max-w-2xl px-6 py-16">
+        <h1 className="font-display text-4xl font-semibold text-ink-900">Sign in</h1>
+        <p className="mb-8 mt-3 text-ink-600">
+          Choose an identity to see the product from that role. Owners manage settings, billing and
+          the team; staff run the schedule; clients only see their own appointments.
         </p>
-        <DemoLoginButtons users={users} tenants={store.tenants} />
-        <div className="mt-8 space-y-2">
-          {users.map((u) => (
-            <div
-              key={u.id}
-              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm"
-            >
-              <span>
-                {u.name} — {roleLabel(u.role)}
-              </span>
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/t/${store.tenants.find((t) => t.id === u.tenantId)?.slug}`}>
-                  Workspace
-                </Link>
-              </Button>
-            </div>
-          ))}
-        </div>
-      </div>
+        {env.DEMO_AUTH_ENABLED ? (
+          <DemoLoginList groups={groups} next={next} />
+        ) : (
+          <Alert tone="info">Role switching is disabled in this environment.</Alert>
+        )}
+      </main>
     </>
   );
 }

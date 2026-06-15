@@ -1,20 +1,23 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { TimeSlotOption } from "@/lib/availability/slots";
-import { SlotPicker } from "@/components/booking/slot-picker";
+import { useRouter } from "next/navigation";
+import { apiFetch, ApiClientError } from "@/lib/api-client";
+import type { SlotOption } from "@/lib/availability";
+import { Alert } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { SlotPicker } from "@/components/booking/slot-picker";
 
 export function RescheduleForm({
   appointmentId,
   slots,
-  tenantSlug,
+  timezoneLabel,
+  returnTo,
 }: {
   appointmentId: string;
-  slots: TimeSlotOption[];
-  tenantSlug: string;
+  slots: SlotOption[];
+  timezoneLabel: string;
+  returnTo: string;
 }) {
   const router = useRouter();
   const [startsAt, setStartsAt] = useState("");
@@ -22,35 +25,28 @@ export function RescheduleForm({
   const [loading, setLoading] = useState(false);
 
   async function submit() {
-    if (!startsAt) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/appointments/reschedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appointmentId, startsAt }),
+      await apiFetch(`/api/appointments/${appointmentId}`, {
+        method: "PATCH",
+        json: { action: "reschedule", startsAt },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed");
-      router.push(`/t/${tenantSlug}/appointments`);
+      router.push(returnTo);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
-    } finally {
+      setError(e instanceof ApiClientError ? e.message : "Could not reschedule");
       setLoading(false);
     }
   }
 
   return (
-    <Card>
-      <CardContent className="space-y-4 pt-6">
-        <SlotPicker slots={slots} value={startsAt} onChange={setStartsAt} />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <Button disabled={!startsAt || loading} onClick={() => void submit()} className="w-full">
-          {loading ? "Saving…" : "Confirm new time"}
-        </Button>
-      </CardContent>
-    </Card>
+    <div className="space-y-5">
+      <SlotPicker slots={slots} value={startsAt} onChange={setStartsAt} timezoneLabel={timezoneLabel} />
+      {error && <Alert>{error}</Alert>}
+      <Button disabled={!startsAt || loading} onClick={() => void submit()}>
+        {loading ? "Saving…" : "Confirm new time"}
+      </Button>
+    </div>
   );
 }

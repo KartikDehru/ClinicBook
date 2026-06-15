@@ -1,31 +1,53 @@
-import { notFound, redirect } from "next/navigation";
-import { resolveTenantFromRequest } from "@/lib/tenants/resolve-tenant";
-import { getAppointmentById } from "@/lib/appointments/service";
-import { generateOpenSlots } from "@/lib/availability/slots";
+import { notFound } from "next/navigation";
+import { AccessGate } from "@/components/layout/access-gate";
 import { RescheduleForm } from "@/components/appointments/reschedule-form";
+import { Card, CardBody } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page";
+import { loadTenantPage } from "@/lib/auth/page-guard";
+import { getContainer } from "@/lib/container";
+import { isAppointmentError } from "@/lib/errors";
+import { formatInZone, shortZoneName } from "@/lib/time";
 
-export default async function ReschedulePage({
-  params,
-}: {
-  params: Promise<{ slug: string; id: string }>;
-}) {
+export default async function ReschedulePage({ params }: { params: Promise<{ slug: string; id: string }> }) {
   const { slug, id } = await params;
-  const tenant = await resolveTenantFromRequest(slug);
-  if (!tenant) notFound();
+  const ctx = await loadTenantPage(slug, "appointment:read");
+  if (!ctx.ok) return <AccessGate ctx={ctx} path={`/t/${slug}/appointments/${id}/reschedule`} />;
+  const { tenant, actor } = ctx;
+  const c = getContainer();
 
-  const appointment = getAppointmentById(id);
-  if (!appointment || appointment.tenantId !== tenant.id) notFound();
-  if (appointment.status === "cancelled") redirect(`/t/${slug}/appointments`);
+  let appointment;
+  try {
+    appointment = await c.appointments.get(actor, id);
+  } catch (err) {
+    if (isAppointmentError(err)) notFound();
+    throw err;
+  }
+  if (appointment.tenantId !== tenant.id) notFound();
 
-  const slots = generateOpenSlots(appointment.providerId, new Date(), 14);
+  const { slots } = await c.appointments.slots(actor, {
+    tenantId: tenant.id,
+    providerId: appointment.providerId,
+    serviceId: appointment.serviceId,
+    days: 28,
+  });
+  const tz = tenant.timezone;
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">Reschedule</h2>
-        <p className="text-slate-600">{appointment.serviceName}</p>
-      </div>
-      <RescheduleForm appointmentId={appointment.id} slots={slots} tenantSlug={slug} />
-    </div>
+    <>
+      <PageHeader
+        title="Reschedule"
+        description={`${appointment.serviceName} · currently ${formatInZone(new Date(appointment.startsAt), tz, "full")}`}
+      />
+      <Card className="max-w-2xl">
+        <CardBody>
+          <RescheduleForm
+            appointmentId={id}
+            slots={slots}
+            timezoneLabel={`${tz.replace("_", " ")} (${shortZoneName(new Date(), tz)})`}
+            returnTo={`/t/${slug}/appointments`}
+          />
+        </CardBody>
+      </Card>
+    </>
   );
 }

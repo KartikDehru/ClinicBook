@@ -1,25 +1,18 @@
-import { NextResponse } from "next/server";
-import {
-  handleStripeWebhookEvent,
-  verifyWebhookSignature,
-} from "@/lib/billing/webhooks";
+import { getContainer } from "@/lib/container";
+import { apiRoute } from "@/lib/http";
 
-export async function POST(request: Request) {
-  const signature = request.headers.get("stripe-signature");
-  if (!signature) {
-    return NextResponse.json({ error: "Missing signature" }, { status: 400 });
-  }
+export const dynamic = "force-dynamic";
 
-  const rawBody = await request.text();
-
-  try {
-    const event = verifyWebhookSignature(rawBody, signature);
-    const result = await handleStripeWebhookEvent(event);
-    return NextResponse.json(result);
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Webhook error" },
-      { status: 400 }
+/** Stripe calls this directly: no session auth, authenticity comes from the signature. */
+export const POST = apiRoute(
+  async ({ request, json }) => {
+    // The signature covers the exact bytes, so read the raw text body.
+    const rawBody = await request.text();
+    const result = await getContainer().billing.handleWebhook(
+      rawBody,
+      request.headers.get("stripe-signature")
     );
-  }
-}
+    return json(result);
+  },
+  { auth: false, name: "/api/webhooks/stripe" }
+);

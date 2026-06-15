@@ -1,36 +1,48 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { apiFetch, ApiClientError } from "@/lib/api-client";
+import { Alert } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
-import type { PlanTier } from "@/types";
 
 export function CheckoutButton({
   tenantId,
   plan,
+  label,
+  variant = "default",
 }: {
   tenantId: string;
-  plan: PlanTier;
+  plan: "pro" | "enterprise";
+  label: string;
+  variant?: "default" | "outline";
 }) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  async function startCheckout() {
+  async function start() {
     setLoading(true);
+    setError(null);
     try {
-      const res = await fetch("/api/billing/checkout", {
+      const res = await apiFetch<{ url: string | null }>("/api/billing/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenantId, plan }),
+        json: { tenantId, plan },
       });
-      const data = await res.json();
-      if (data.url) window.location.href = data.url;
-    } finally {
+      if (res.url) window.location.href = res.url;
+      else router.refresh();
+    } catch (e) {
+      setError(e instanceof ApiClientError ? e.message : "Checkout failed");
       setLoading(false);
     }
   }
 
   return (
-    <Button onClick={() => void startCheckout()} disabled={loading || plan === "free"}>
-      {loading ? "Redirecting…" : `Subscribe to ${plan}`}
-    </Button>
+    <div className="space-y-2">
+      <Button className="w-full" variant={variant} disabled={loading} onClick={() => void start()}>
+        {loading ? "Redirecting…" : label}
+      </Button>
+      {error && <Alert>{error}</Alert>}
+    </div>
   );
 }

@@ -1,29 +1,15 @@
-import { NextResponse } from "next/server";
-import { createCustomer, getCustomersForTenant } from "@/lib/customers/service";
+import { z } from "zod";
+import { getContainer } from "@/lib/container";
+import { apiRoute, parseBody, parseQuery } from "@/lib/http";
 import { createCustomerSchema } from "@/lib/validation/schemas";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const tenantId = searchParams.get("tenantId");
-  if (!tenantId) {
-    return NextResponse.json({ error: "tenantId required" }, { status: 400 });
-  }
-  return NextResponse.json({ customers: getCustomersForTenant(tenantId) });
-}
+export const GET = apiRoute(async ({ request, actor, json }) => {
+  const { tenantId } = parseQuery(request, z.object({ tenantId: z.string().min(1) }));
+  return json({ customers: await getContainer().customers.list(actor, tenantId) });
+});
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const parsed = createCustomerSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-    }
-    const customer = createCustomer(parsed.data);
-    return NextResponse.json({ customer }, { status: 201 });
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Create failed" },
-      { status: 400 }
-    );
-  }
-}
+export const POST = apiRoute(async ({ request, actor, json }) => {
+  const input = await parseBody(request, createCustomerSchema);
+  const customer = await getContainer().customers.create(actor, input);
+  return json({ customer }, { status: 201 });
+});

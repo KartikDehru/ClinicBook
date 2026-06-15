@@ -1,73 +1,118 @@
 import Stripe from "stripe";
+import { env } from "@/lib/env";
+import { AppointmentError } from "@/lib/errors";
+import { logger } from "@/lib/logging";
 
-const useMock = !process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY.startsWith("sk_test_mock");
+export interface CheckoutParams {
+  tenantId: string;
+  tenantSlug: string;
+  plan: "pro" | "enterprise";
+  priceId: string;
+  customerId?: string;
+  customerEmail?: string;
+  successUrl: string;
+  cancelUrl: string;
+}
 
-export interface MockCheckoutSession {
+export interface CheckoutResult {
   id: string;
-  url: string;
-  customer: string;
-  subscription?: string;
-  metadata: Record<string, string>;
+  url: string | null;
+  mock: boolean;
 }
 
-export interface StripeClientLike {
-  checkout: {
-    sessions: {
-      create(params: Stripe.Checkout.SessionCreateParams): Promise<Stripe.Checkout.Session | MockCheckoutSession>;
+export interface StripeGateway {
+  createCheckoutSession(params: CheckoutParams): Promise<CheckoutResult>;
+  cancelSubscription(subscriptionId: string): Promise<void>;
+}
+
+export class MockStripeGateway implements StripeGateway {
+  async createCheckoutSession(params: CheckoutParams): Promise<CheckoutResult> {
+    const id = `cs_mock_${Date.now().toString(36)}`;
+    return {
+      id,
+      mock: true,
+      url: `${params.successUrl}${params.successUrl.includes("?") ? "&" : "?"}session_id=${id}`,
     };
-  };
-  subscriptions: {
-    update(id: string, params: Stripe.SubscriptionUpdateParams): Promise<Stripe.Subscription | { id: string; status: string }>;
-    cancel(id: string): Promise<Stripe.Subscription | { id: string; status: string }>;
-  };
-  webhooks: {
-    constructEvent(payload: string, signature: string, secret: string): Stripe.Event | MockStripeEvent;
-  };
+  }
+  async cancelSubscription(): Promise<void> {}
 }
 
-export interface MockStripeEvent {
+export class LiveStripeGateway implements StripeGateway {
+  private stripe: Stripe;
+  constructor(secretKey: string) {
+    this.stripe = new Stripe(secretKey);
+  }
+
+  async createCheckoutSession(p: CheckoutParams): Promise<CheckoutResult> {
+    const session = await this.stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: p.customerId,
+      customer_email: p.customerId ? undefined : p.customerEmail,
+      line_items: [{ price: p.priceId, quantity: 1 }],
+      success_url: p.successUrl,
+      cancel_url: p.cancelUrl,
+      client_reference_id: p.tenantId,
+      metadata: { tenantId: p.tenantId, plan: p.plan },
+      subscription_data: { metadata: { tenantId: p.tenantId, plan: p.plan } },
+    });
+    return { id: session.id, url: session.url, mock: false };
+  }
+
+  async cancelSubscription(subscriptionId: string): Promise<void> {
+    await this.stripe.subscriptions.cancel(subscriptionId);
+  }
+}
+
+export function createStripeGateway(): StripeGateway {
+  return env.STRIPE_MOCK ? new MockStripeGateway() : new LiveStripeGateway(env.STRIPE_SECRET_KEY);
+}
+
+export interface VerifiedEvent {
   id: string;
   type: string;
   data: { object: Record<string, unknown> };
 }
 
-class MockStripeClient implements StripeClientLike {
-  checkout = {
-    sessions: {
-      create: async (params: Stripe.Checkout.SessionCreateParams) => {
-        const id = `cs_mock_${Date.now()}`;
-        return {
-          id,
-          url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/billing/success?session_id=${id}`,
-          customer: typeof params.customer === "string" ? params.customer : "cus_mock",
-          subscription: params.mode === "subscription" ? `sub_mock_${Date.now()}` : undefined,
-          metadata: (params.metadata as Record<string, string>) ?? {},
-        } as MockCheckoutSession;
-      },
-    },
-  };
+/**
+ * Verifies a Stripe webhook.
+ *  - secret configured  → signature is ALWAYS verified (live and mock mode); invalid/missing is rejected.
+ *  - no secret + mock   → unsigned JSON accepted (local development only).
+ *  - no secret + live   → rejected.
+ */
+export function verifyStripeWebhook(
+  rawBody: string,
+  signatureHeader: string | null,
+  config: { secret?: string; mock: boolean }
+): VerifiedEvent {
+  if (config.secret) {
+    if (!signatureHeader) {
+      throw new AppointmentError("WEBHOOK_SIGNATURE", "Missing Stripe-Signature header.");
+    }
+    try {
+      return Stripe.webhooks.constructEvent(rawBody, signatureHeader, config.secret) as unknown as VerifiedEvent;
+    } catch (err) {
+      throw new AppointmentError(
+        "WEBHOOK_SIGNATURE",
+        `Webhook signature verification failed: ${err instanceof Error ? err.message : "invalid signature"}`
+      );
+    }
+  }
 
-  subscriptions = {
-    update: async (id: string) => ({ id, status: "active" }),
-    cancel: async (id: string) => ({ id, status: "canceled" }),
-  };
+  if (!config.mock) {
+    throw new AppointmentError("WEBHOOK_SIGNATURE", "Webhook secret is not configured.");
+  }
 
-  webhooks = {
-    constructEvent: (payload: string, _signature: string, _secret: string) => {
-      const parsed = JSON.parse(payload) as MockStripeEvent;
-      return parsed;
-    },
-  };
+  logger.warn("accepting unsigned webhook (mock mode, no STRIPE_WEBHOOK_SECRET)");
+  try {
+    const parsed = JSON.parse(rawBody) as Partial<VerifiedEvent>;
+    if (!parsed.type || !parsed.data?.object) throw new Error("malformed event");
+    return { id: parsed.id ?? `evt_mock_${Date.now()}`, type: parsed.type, data: parsed.data };
+  } catch {
+    throw new AppointmentError("VALIDATION_FAILED", "Webhook body is not a valid event.");
+  }
 }
 
-let stripeInstance: Stripe | null = null;
-
-export function getStripeClient(): StripeClientLike {
-  if (useMock) {
-    return new MockStripeClient();
-  }
-  if (!stripeInstance) {
-    stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY!);
-  }
-  return stripeInstance as unknown as StripeClientLike;
+/** Test/dev helper: produce a correctly signed header for `payload`. */
+export function signStripePayload(payload: string, secret: string): string {
+  return Stripe.webhooks.generateTestHeaderString({ payload, secret });
 }

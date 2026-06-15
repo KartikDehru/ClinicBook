@@ -1,37 +1,29 @@
 import Link from "next/link";
-import { applyPlanToTenant } from "@/lib/billing/checkout";
-import { getTenantBySlug } from "@/lib/tenants/resolve-tenant";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Button } from "@/components/ui/button";
+import { PLANS } from "@/lib/plans";
+import type { PlanTier } from "@/types";
 
 export default async function BillingSuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tenant?: string; session_id?: string }>;
+  searchParams: Promise<{ tenant?: string; plan?: string }>;
 }) {
-  const params = await searchParams;
-  const tenant = params.tenant ? getTenantBySlug(params.tenant) : undefined;
-
-  if (tenant && tenant.plan === "free") {
-    applyPlanToTenant(tenant.id, "pro", `sub_mock_${params.session_id ?? "success"}`);
-  }
-
+  const { tenant, plan } = await searchParams;
+  const planName = plan && plan in PLANS ? PLANS[plan as PlanTier].name : "your new plan";
   return (
     <>
       <SiteHeader />
-      <div className="mx-auto max-w-lg px-4 py-20 text-center">
-        <h1 className="text-2xl font-bold text-slate-900">Payment successful</h1>
-        <p className="mt-2 text-slate-600">
-          {tenant
-            ? `${tenant.name} is now on the upgraded plan (demo mock).`
-            : "Your subscription has been updated."}
+      <main className="mx-auto max-w-xl px-6 py-24">
+        <h1 className="font-display text-4xl font-semibold text-ink-900">Subscription confirmed</h1>
+        <p className="mt-4 text-ink-600">
+          {planName} is active. Seat and booking limits update immediately; a receipt has been sent to the
+          account owner.
         </p>
-        {tenant && (
-          <Button asChild className="mt-6">
-            <Link href={`/t/${tenant.slug}/billing`}>Back to billing</Link>
-          </Button>
-        )}
-      </div>
+        <Button asChild className="mt-8">
+          <Link href={tenant ? `/t/${tenant}/billing` : "/"}>Back to billing</Link>
+        </Button>
+      </main>
     </>
   );
 }
